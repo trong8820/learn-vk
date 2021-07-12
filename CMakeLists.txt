@@ -59,7 +59,11 @@ link_directories(
 	${CMAKE_SOURCE_DIR}/3rdparty/vulkan-1.2.182/${PLATFORM_FOLDER}/lib
 )
 
+if (WINDOWS)
 link_libraries(glfw3 vulkan-1)
+else()
+link_libraries(glfw3 vulkan)
+endif()
 
 if (APPLE)
 	link_libraries(
