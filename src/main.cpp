@@ -15,6 +15,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
 int main()
 {
     glfwInit();
+
+    // Check vulkan supported
+    if(glfwVulkanSupported() == GLFW_FALSE)
+    {
+        std::cout << "Vulkan is not supported!\n";
+    }
+
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* pWindow = glfwCreateWindow(800, 600, "Vulkan Window", nullptr, nullptr);
 
@@ -208,7 +215,6 @@ int main()
             std::cout << "\n";
         }
         
-       
         //VkPhysicalDeviceFeatures physicalDeviceFeatures;
         //vkGetPhysicalDeviceFeatures(physicalDevice, &physicalDeviceFeatures);
     }
@@ -312,7 +318,7 @@ int main()
         }
     }
     uint32_t presentQueueFamilyIndex{};
-    for (size_t i=queueFamilyProperties.size() - 1; i>=0; i--)
+    for (size_t i=0; i<queueFamilyProperties.size(); i++)
     {
         VkBool32 presentSupport = false;
         vkGetPhysicalDeviceSurfaceSupportKHR(choosePhysicalDevice, i, surface, &presentSupport);
@@ -344,10 +350,13 @@ int main()
         deviceQueueCreateInfos[1] = deviceQueueCreateInfo;
     }
 
+    std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.queueCreateInfoCount = 2;
+    deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(deviceQueueCreateInfos.size());
     deviceCreateInfo.pQueueCreateInfos = deviceQueueCreateInfos.data();
+    deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
     VkDevice device;
     if (vkCreateDevice(choosePhysicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)
@@ -371,15 +380,196 @@ int main()
     VkDebugUtilsMessengerEXT debugUtilsMessengerEXT;
     pfnCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCreateInfoEXT, nullptr, &debugUtilsMessengerEXT);
 
+    VkCommandPoolCreateInfo commandPoolCreateInfo{};
+    commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+
+    VkCommandPool commandPool;
+    if (vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool) != VK_SUCCESS)
+    {
+        std::cout << "Failed to create command pool!\n";
+    }
+
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferAllocateInfo.commandPool = commandPool;
+    commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    commandBufferAllocateInfo.commandBufferCount = 1;
+
+    std::vector<VkCommandBuffer> commandBuffers(1);
+    if (vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers.data()) != VK_SUCCESS)
+    {
+        std::cout << "Failed to allocate command buffers!\n";
+    }
+    
+    VkCommandBufferBeginInfo commandBufferBeginInfo{};
+    commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    vkBeginCommandBuffer(commandBuffers[0], &commandBufferBeginInfo);
+    vkEndCommandBuffer(commandBuffers[0]);
+
+    //VkSubmitInfo submitInfo{};
+    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    //submitInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+    //submitInfo.pCommandBuffers = commandBuffers.data();
+    //vkQueueSubmit(graphicsQueue, 1, &submitInfo, ?);
+
+    uint32_t surfaceFormatCount{};
+    vkGetPhysicalDeviceSurfaceFormatsKHR(choosePhysicalDevice, surface, &surfaceFormatCount, nullptr);
+    std::vector<VkSurfaceFormatKHR> surfaceFormats(surfaceFormatCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(choosePhysicalDevice, surface, &surfaceFormatCount, surfaceFormats.data());
+    //VK_FORMAT_B8G8R8A8_UNORM
+    //VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(choosePhysicalDevice, surface, &surfaceCapabilities);
+    //VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+    uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+    if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
+    {
+        imageCount = surfaceCapabilities.maxImageCount;
+    }
+    VkExtent2D extent = surfaceCapabilities.currentExtent;
+    if (extent.width == UINT32_MAX || extent.height == UINT32_MAX)
+    {
+        int width{};
+        int height{};
+        glfwGetFramebufferSize(pWindow, &width, &height);
+        extent.width = std::clamp(static_cast<uint32_t>(width), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+        extent.height = std::clamp(static_cast<uint32_t>(height), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+    }
+
+    uint32_t presentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(choosePhysicalDevice, surface, &presentModeCount, nullptr);
+    std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(choosePhysicalDevice, surface, &presentModeCount, presentModes.data());
+    //VK_PRESENT_MODE_FIFO_KHR
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfoKHR{};
+    swapchainCreateInfoKHR.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfoKHR.surface = surface;
+    swapchainCreateInfoKHR.minImageCount = imageCount;
+    swapchainCreateInfoKHR.imageExtent = extent;
+    swapchainCreateInfoKHR.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    swapchainCreateInfoKHR.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    swapchainCreateInfoKHR.imageArrayLayers = 1; // For non-stereoscopic-3D applications, this value is 1
+    swapchainCreateInfoKHR.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfoKHR.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    swapchainCreateInfoKHR.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfoKHR.clipped = VK_TRUE;
+
+    // VK_SHARING_MODE_CONCURRENT may result in lower performance access to the buffer or image than VK_SHARING_MODE_EXCLUSIVE.
+    if (graphicsQueueFamilyIndex == presentQueueFamilyIndex)
+    {
+        swapchainCreateInfoKHR.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    } else {
+        swapchainCreateInfoKHR.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        swapchainCreateInfoKHR.queueFamilyIndexCount = 2;
+        uint32_t queueFamilyIndices[] = {graphicsQueueFamilyIndex, presentQueueFamilyIndex};
+        swapchainCreateInfoKHR.pQueueFamilyIndices = queueFamilyIndices;
+    }
+
+    if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+    {
+        swapchainCreateInfoKHR.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    } else 
+    {
+        swapchainCreateInfoKHR.preTransform = surfaceCapabilities.currentTransform;
+    }
+    
+    VkSwapchainKHR swapchain;
+    if (vkCreateSwapchainKHR(device, &swapchainCreateInfoKHR, nullptr, &swapchain) != VK_SUCCESS)
+    {
+        std::cout << "Failed to create swapchain!\n";
+    }
+
+    uint32_t swapchainImageCount{};
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
+    std::vector<VkImage> swapchainImages(swapchainImageCount);
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
+
+    std::vector<VkImageView> swapchainImageViews(swapchainImageCount);
+    for (size_t i = 0; i < swapchainImageCount; i++)
+    {
+        VkImageViewCreateInfo imageViewCreateInfo{};
+        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewCreateInfo.image = swapchainImages[i];
+        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        imageViewCreateInfo.format = VK_FORMAT_B8G8R8A8_UNORM;
+        imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+        imageViewCreateInfo.subresourceRange.levelCount = 1;
+        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+        imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS)
+        {
+            std::cout << "Failed to create image view!\n";
+        }
+    }
+
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(choosePhysicalDevice, VK_FORMAT_D16_UNORM, &formatProperties);
+
+    VkImageCreateInfo imageCreateInfo{};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.format = VK_FORMAT_D16_UNORM;
+    imageCreateInfo.extent.width = extent.width;
+    imageCreateInfo.extent.height = extent.height;
+    imageCreateInfo.extent.depth = 1;
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    } else if (formatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        imageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+    } else 
+    {
+        std::cout << "Unsupported depth format, try other depth formats!\n";
+    }
+
+    VkImage depthImage;
+    if (vkCreateImage(device, &imageCreateInfo, nullptr, &depthImage) != VK_SUCCESS)
+    {
+        std::cout << "Failed to create depth image!\n";
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements(device, depthImage, &memoryRequirements);
+
     std::cout << std::endl;
     while(!glfwWindowShouldClose(pWindow)) 
     {
         glfwPollEvents();
     }
 
+    vkDestroyImage(device, depthImage, nullptr);
+
+    for (auto swapchainImageView : swapchainImageViews) 
+    {
+        vkDestroyImageView(device, swapchainImageView, nullptr);
+    }
+
+    vkDestroySwapchainKHR(device, swapchain, nullptr);
+
+    vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
     auto pfnDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
     pfnDestroyDebugUtilsMessengerEXT(instance, debugUtilsMessengerEXT, nullptr);
 
+    vkDestroyCommandPool(device, commandPool, nullptr);
+    vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
     glfwDestroyWindow(pWindow);
