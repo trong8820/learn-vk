@@ -827,6 +827,8 @@ int main()
         }
     }
 
+    vkDeviceWaitIdle(device);
+
     for (auto framebuffer : swapchainFramebuffers) 
     {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
