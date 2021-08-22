@@ -42,21 +42,22 @@ endif()
 
 # 3rdparty include
 include_directories (
-	${CMAKE_SOURCE_DIR}/3rdparty/glfw-3.3.2/include
+	${CMAKE_SOURCE_DIR}/3rdparty/glm-0.9.9.8/include
+	${CMAKE_SOURCE_DIR}/3rdparty/glfw-3.3.4/include
 	${CMAKE_SOURCE_DIR}/3rdparty/vulkan-1.2.182/include
 )
 
 # 3rdparty sources
-file(GLOB_RECURSE 3RDPARTY_SOURCE_FILES
-	${CMAKE_SOURCE_DIR}/3rdparty/*.c
-	${CMAKE_SOURCE_DIR}/3rdparty/*.cc
-	${CMAKE_SOURCE_DIR}/3rdparty/*.cpp
-)
+#file(GLOB_RECURSE 3RDPARTY_SOURCE_FILES
+#	${CMAKE_SOURCE_DIR}/3rdparty/*.c
+#	${CMAKE_SOURCE_DIR}/3rdparty/*.cc
+#	${CMAKE_SOURCE_DIR}/3rdparty/*.cpp
+#)
 
 # 3rdparty libs
 link_directories(
-	${CMAKE_SOURCE_DIR}/3rdparty/glfw-3.3.2/lib/${PLATFORM_FOLDER}
-	${CMAKE_SOURCE_DIR}/3rdparty/vulkan-1.2.182/${PLATFORM_FOLDER}/lib
+	${CMAKE_SOURCE_DIR}/3rdparty/glfw-3.3.4/lib/${PLATFORM_FOLDER}
+	${CMAKE_SOURCE_DIR}/3rdparty/vulkan-1.2.182/lib/${PLATFORM_FOLDER}
 )
 
 if (WINDOWS)
@@ -78,4 +79,13 @@ include_directories(
 	 ${CMAKE_SOURCE_DIR}/include
 )
 
-add_executable(${PROJECT_NAME} ${3RDPARTY_SOURCE_FILES} ${CMAKE_SOURCE_DIR}/src/main.cpp)
+# add_executable(${PROJECT_NAME} ${3RDPARTY_SOURCE_FILES} ${CMAKE_SOURCE_DIR}/src/main.cpp)
+# add_executable(${PROJECT_NAME} ${3RDPARTY_SOURCE_FILES} ${CMAKE_SOURCE_DIR}/src/main01.cpp)
+add_executable(${PROJECT_NAME} ${3RDPARTY_SOURCE_FILES} ${CMAKE_SOURCE_DIR}/src/main02.cpp)
+
+add_custom_command(TARGET  ${PROJECT_NAME} PRE_BUILD
+				   COMMAND "python" ${CMAKE_SOURCE_DIR}/shaders/compile.py
+				   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/shaders
+				   COMMAND ${CMAKE_COMMAND} -E copy_directory
+				   ${CMAKE_SOURCE_DIR}/data $<TARGET_FILE_DIR:${PROJECT_NAME}>/data
+)
